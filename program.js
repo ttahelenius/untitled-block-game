@@ -5,12 +5,12 @@
 - Replay
 */
 
-const w = 10, h = 7;
-const frameWidth = 1000;
-const frameHeight = frameWidth * h/w;
-
 const canvas = document.querySelector("canvas");
 const ctx = canvas.getContext("2d");
+
+const w = 10, h = 7;
+const frameWidth = canvas.width;
+const frameHeight = canvas.height;
 
 const stepSound = new Audio("sfx/pawn.mp3");
 const slideSound = new Audio("sfx/slide.mp3");
@@ -19,6 +19,8 @@ slideEndSound.volume = 0.5;
 const flagSound = new Audio("sfx/flag.mp3");
 
 let pawnImages, pawnUpImages, pawnDownImages, pawnLeftImages, pawnRightImages, blockImages, flagImages;
+
+const toCanvasCoordinates = initCanvasLayout();
 
 loadImages([
     ...(pawnImages = createImages("pawn.png")),
@@ -29,6 +31,28 @@ loadImages([
     ...(blockImages = createImages("block.png")),
     ...(flagImages = createImages("flag_*.png", 48))
 ], ready);
+
+
+function initCanvasLayout() {
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.objectFit = "contain";
+    return (x, y) => {
+        var canvasRect = canvas.getBoundingClientRect();
+        var scale, offsetX, offsetY;
+
+        if (canvasRect.height / canvas.height > canvasRect.width / canvas.width) {
+            scale = canvasRect.width / canvas.width;
+            offsetX = 0;
+            offsetY = (canvasRect.height - canvas.height*scale)/2;
+        } else {
+            scale = canvasRect.height / canvas.height;
+            offsetX = (canvasRect.width - canvas.width*scale)/2;
+            offsetY = 0;
+        }
+        return {x: (x - offsetX) / scale, y: (y - offsetY) / scale};
+    };
+}
 
 function createImages(file, n) {
     if (!n) {
@@ -81,14 +105,16 @@ const levels = [
 const game = {
     init: (levelNo, pawn, blocks, flags) => {
         let pieces = [...blocks, ...flags, pawn];
-        let updateLoop, drawLoop, stateCheck, keyListener;
+        let updateLoop, drawLoop, stateCheck, keyListener, touchListener;
         update = () => {
             for (let i = 0; i < pieces.length; i++) {
                 pieces[i].update();
             }
         };
         draw = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.globalCompositeOperation = 'destination-under'
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             for (let i = 0; i < pieces.length; i++) {
                 let p = pieces[i];
                 let aspect = p.image.naturalWidth / p.image.naturalHeight;
@@ -136,6 +162,7 @@ const game = {
         };
         checkState = () => {
             let restart = levelNo => {
+                document.removeEventListener("touchstart", touchListener);
                 document.removeEventListener("keydown", keyListener);
                 clearInterval(drawLoop);
                 clearInterval(updateLoop);
@@ -174,6 +201,25 @@ const game = {
                 move(1, 0);
         };
         document.addEventListener("keydown", keyListener);
+
+        touchListener = e => {
+            var touchpos = toCanvasCoordinates(e.touches[0].clientX, e.touches[0].clientY);
+            var x = touchpos.x * w / frameWidth;
+            var y = touchpos.y * h / frameHeight;
+            var dx = x - (pawn.xTarget + .5);
+            var dy = y - (pawn.yTarget + .5);
+            if (Math.abs(dx) > .5 || Math.abs(dy) > .5) {
+                if (Math.abs(dx) < -dy)
+                    move(0, -1);
+                else if (Math.abs(dy) < -dx)
+                    move(-1, 0);
+                else if (Math.abs(dx) < dy)
+                    move(0, 1);
+                else if (Math.abs(dy) < dx)
+                    move(1, 0);
+            }
+        }
+        document.addEventListener("touchstart", touchListener);
 
         updateLoop = setInterval(update, 10);
         drawLoop = setInterval(draw, 10);
