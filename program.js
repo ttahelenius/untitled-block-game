@@ -1,8 +1,7 @@
 /* TODO:
-- Undo
+- Undo for touch usecase
 - Steplimits
 - Move limited blocks
-- Replay
 */
 
 const canvas = document.querySelector("canvas");
@@ -11,6 +10,7 @@ const ctx = canvas.getContext("2d");
 const w = 10, h = 7;
 const frameWidth = canvas.width;
 const frameHeight = canvas.height;
+const godMode = true;
 
 const stepSound = new Audio("sfx/pawn.mp3");
 const slideSound = new Audio("sfx/slide.mp3");
@@ -85,27 +85,32 @@ function loadImages(images, onload) {
 }
 
 const levels = [
-    " P [ ]               [ ]      " +
-    "               [ ][ ]   [ ][ ]" +
-    "                     [ ][ ]   " +
-    "[ ]   [ ]         [ ][ ]   [ ]" +
-    "            [ ][ ]            " +
-    "[ ]            [ ]   [ ][ ]   " +
-    "      [ ][ ][ ][ ]      [ ][O]",
-
-    "                              " +
-    "   [ ][ ][ ]      [ ][ ][ ]   " +
-    "   [ ]                  [ ]   " +
-    "             P  P             " +
-    "   [ ]                  [ ]   " +
-    "   [ ][ ][ ]      [ ][ ][O]   " +
-    "                              "
+    {
+        layout: " P [ ]               [ ]      " +
+                "               [ ][ ]   [ ][ ]" +
+                "                     [ ][ ]   " +
+                "[ ]   [ ]         [ ][ ]   [ ]" +
+                "            [ ][ ]            " +
+                "[ ]            [ ]   [ ][ ]   " +
+                "      [ ][ ][ ][ ]      [ ][O]",
+        solution: [2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 2, 0, 2, 3, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2]
+    },
+    {
+        layout: "                              " +
+                "   [ ][ ][ ]      [ ][ ][ ]   " +
+                "   [ ]                  [ ]   " +
+                "             P  P             " +
+                "   [ ]                  [ ]   " +
+                "   [ ][ ][ ]      [ ][ ][O]   " +
+                "                              ",
+        solution: [2, 2, 1, 0, 2, 0, 2, 1, 1, 1, 1, 1, 2, 2, 2, 0, 2, 0, 2, 3, 2, 2, 2, 1, 2, 3, 2, 2, 3, 2, 2, 3, 0, 1, 0, 0, 0, 3, 0, 0, 0, 3, 3, 3, 2, 2]
+    }
 ];
 
 const game = {
-    init: (levelNo, pawn, blocks, flags) => {
+    init: (levelNo, pawn, blocks, flags, history=[]) => {
         let pieces = [...blocks, ...flags, pawn];
-        let updateLoop, drawLoop, stateCheck, keyListener, touchListener;
+        let updateLoop, drawLoop, stateCheck, keyListener, touchListener, replayLoop, replaying;
         update = () => {
             for (let i = 0; i < pieces.length; i++) {
                 pieces[i].update();
@@ -134,16 +139,29 @@ const game = {
         }
         blockAt = (x, y) => pieceAt(blocks, x, y);
         flagAt = (x, y) => pieceAt(flags, x, y);
-        move = (dx, dy) => {
+        move = (dx, dy, immediately) => {
+            if (dx === 1 && dy === 0)
+                history.push(0);
+            else if (dx === 0 && dy === -1)
+                history.push(1);
+            else if (dx === -1 && dy === 0)
+                history.push(2);
+            else if (dx === 0 && dy === 1)
+                history.push(3);
+
             if (blockAt(pawn.xTarget + dx, pawn.yTarget + dy)) {
-                pawn.move(pawn.xTarget + dx, pawn.yTarget + dy);
+                pawn.move(pawn.xTarget + dx, pawn.yTarget + dy, immediately);
                 let flag = flagAt(pawn.xTarget, pawn.yTarget);
                 if (flag) {
-                    setTimeout(() => {
+                    let capture = () => {
                         flag.removed();
                         flags.splice(flags.indexOf(flag), 1);
                         pieces.splice(pieces.indexOf(flag), 1);
-                    }, 100);
+                    };
+                    if (immediately)
+                        capture();
+                    else
+                        setTimeout(capture, 100);
                 }
             } else {
                 let blockUnder = blockAt(pawn.xTarget, pawn.yTarget);
@@ -157,25 +175,27 @@ const game = {
                     x += dx;
                     y += dy;
                 }
-                blockUnder.move(x, y);
+                blockUnder.move(x, y, immediately);
             }
         };
-        checkState = () => {
-            let restart = levelNo => {
-                document.removeEventListener("touchstart", touchListener);
-                document.removeEventListener("keydown", keyListener);
-                clearInterval(drawLoop);
-                clearInterval(updateLoop);
-                clearInterval(stateCheck);
-                ready(levelNo);
+        startLevel = targetLevelNo => {
+            for (let i = 0; i < pieces.length; i++) {
+                pieces[i].stop();
             }
-
+            document.removeEventListener("touchstart", touchListener);
+            document.removeEventListener("keydown", keyListener);
+            clearInterval(drawLoop);
+            clearInterval(updateLoop);
+            clearInterval(stateCheck);
+            ready(targetLevelNo);
+        }
+        checkState = () => {
             if (flags.length == 0) {
                 if (levelNo == levels.length - 1) {
                     alert("You win!");
-                    restart();
+                    startLevel();
                 } else {
-                    restart(levelNo + 1);
+                    startLevel(levelNo + 1);
                 }
                 return;
             }
@@ -186,23 +206,70 @@ const game = {
                 return;
 
             alert("You fail");
-            restart(levelNo);
+            startLevel(levelNo);
+        };
+        replay = (moveArray, immediately) => {
+            clearTimeout(replayLoop);
+            if (moveArray.length) {
+                replaying = true;
+                let nextMove = moveArray[0];
+                let nextPlay = () => replay(moveArray.slice(1), immediately);
+                if (nextMove === 0)
+                    move(1, 0, immediately);
+                else if (nextMove === 1)
+                    move(0, -1, immediately);
+                else if (nextMove === 2)
+                    move(-1, 0, immediately);
+                else if (nextMove === 3)
+                    move(0, 1, immediately);
+
+                if (immediately) {
+                    update();
+                    nextPlay();
+                } else {
+                    replayLoop = setTimeout(nextPlay, 300);
+                }
+            } else {
+                replaying = false;
+            }
         };
 
 
         keyListener = e => {
-            if (e.key === "Up" || e.key === "ArrowUp" || e.key === "w")
-                move(0, -1);
-            else if (e.key === "Left" || e.key === "ArrowLeft" || e.key === "a")
-                move(-1, 0);
-            else if (e.key === "Down" || e.key === "ArrowDown" || e.key === "s")
-                move(0, 1);
-            else if (e.key === "Right" || e.key === "ArrowRight" || e.key === "d")
-                move(1, 0);
+            if (!replaying) {
+                if (e.key === "Up" || e.key === "ArrowUp" || e.key === "w") {
+                    move(0, -1);
+                } else if (e.key === "Left" || e.key === "ArrowLeft" || e.key === "a") {
+                    move(-1, 0);
+                } else if (e.key === "Down" || e.key === "ArrowDown" || e.key === "s") {
+                    move(0, 1);
+                } else if (e.key === "Right" || e.key === "ArrowRight" || e.key === "d") {
+                    move(1, 0);
+                } else if (e.key === "Backspace" || e.key === "Delete") {
+                    startLevel(levelNo);
+                    replay(history.slice(0, history.length-1), true);
+                } else if (godMode && e.key === "End") {
+                    startLevel(levelNo);
+                    setTimeout(() => replay(levels[levelNo].solution), 300);
+                } else if (godMode && e.key === "Home") {
+                    startLevel(levelNo);
+                } else if (godMode && e.key === "PageUp") {
+                    startLevel(levelNo + 1);
+                } else if (godMode && e.key === "PageDown") {
+                    startLevel(levelNo - 1);
+                }
+            } else {
+                if (e.key === "Escape") {
+                    clearTimeout(replayLoop);
+                    replaying = false;
+                }
+            }
         };
         document.addEventListener("keydown", keyListener);
 
         touchListener = e => {
+            if (replaying)
+                return;
             var touchpos = toCanvasCoordinates(e.touches[0].clientX, e.touches[0].clientY);
             var x = touchpos.x * w / frameWidth;
             var y = touchpos.y * h / frameHeight;
@@ -228,9 +295,11 @@ const game = {
 };
 
 function ready(levelNo) {
-    if (!levelNo)
+    if (!levelNo || levelNo < 0)
         levelNo = 0;
-    let level = levels[levelNo];
+    if (levelNo >= levels.length - 1)
+        levelNo = levels.length - 1;
+    let level = levels[levelNo].layout;
 
     let pawn = null;
     let blocks = [];
@@ -323,15 +392,22 @@ function createPiece(images, x, y, speed) {
         p.frameSpeed = frameSpeed || 1;
         p.scale = scale || 1;
     };
-    p.move = (xTarget, yTarget) => {
-        p.x = p.xTarget;
-        p.y = p.yTarget;
-        p.xTarget = xTarget;
-        p.yTarget = yTarget;
-        let dx = Math.round(p.xTarget - p.x);
-        let dy = Math.round(p.yTarget - p.y);
-        if (dx != 0 || dy != 0)
-            p.moved(dx, dy);
+    p.move = (xTarget, yTarget, immediately) => {
+        if (immediately) {
+            p.x = xTarget;
+            p.y = yTarget;
+            p.xTarget = xTarget;
+            p.yTarget = yTarget;
+        } else {
+            p.x = p.xTarget;
+            p.y = p.yTarget;
+            p.xTarget = xTarget;
+            p.yTarget = yTarget;
+            let dx = Math.round(p.xTarget - p.x);
+            let dy = Math.round(p.yTarget - p.y);
+            if (dx != 0 || dy != 0)
+                p.moved(dx, dy);
+        }
     };
     p.update = () => {
         p.frame = (p.frame + p.frameSpeed) % p.images.length;
@@ -339,15 +415,18 @@ function createPiece(images, x, y, speed) {
         if (p.speed === Infinity || (Math.abs(p.xTarget - p.x) < p.speed && Math.abs(p.yTarget - p.y) < p.speed)) {
             p.x = p.xTarget;
             p.y = p.yTarget;
-            if (p.moving) {
-                p.stoppedMoving();
-                p.moving = false;
-            }
+            p.stop();
             return;
         }
         p.x += p.speed * Math.sign(p.xTarget - p.x);
         p.y += p.speed * Math.sign(p.yTarget - p.y);
         p.moving = true;
     };
+    p.stop = () => {
+        if (p.moving) {
+            p.stoppedMoving();
+            p.moving = false;
+        }
+    }
     return p;
 }
