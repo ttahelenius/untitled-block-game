@@ -137,7 +137,7 @@ const res = (() => {
                 else if (dx > 0 && dy == 0)
                     p.switchImages(pawnRightImages, 0.6, 1.7);
                 else if (dx == 0 && dy < 0)
-                    p.switchImages(pawnDownImages, 0.6);
+                    p.switchImages(pawnUpImages, 0.6);
                 else if (dx == 0 && dy > 0)
                     p.switchImages(pawnDownImages, 0.6);
             };
