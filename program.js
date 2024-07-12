@@ -31,28 +31,35 @@ const game = {
         game.draw = () => ui.drawPieces(pieces);
 
         game.replay = (moveArray, immediately) => {
-            clearTimeout(replayLoop);
-            if (moveArray.length) {
-                replaying = true;
-                let nextMove = moveArray[0];
-                let nextPlay = () => game.replay(moveArray.slice(1), immediately);
-                if (nextMove === 0)
-                    move(1, 0, immediately);
-                else if (nextMove === 1)
-                    move(0, -1, immediately);
-                else if (nextMove === 2)
-                    move(-1, 0, immediately);
-                else if (nextMove === 3)
-                    move(0, 1, immediately);
+            if (immediately)
+                res.mute();
+            try {
+                clearTimeout(replayLoop);
+                if (moveArray.length) {
+                    replaying = true;
+                    let nextMove = moveArray[0];
+                    let nextPlay = () => game.replay(moveArray.slice(1), immediately);
+                    if (nextMove === 0)
+                        move(1, 0, immediately);
+                    else if (nextMove === 1)
+                        move(0, -1, immediately);
+                    else if (nextMove === 2)
+                        move(-1, 0, immediately);
+                    else if (nextMove === 3)
+                        move(0, 1, immediately);
 
-                if (immediately) {
-                    game.update();
-                    nextPlay();
+                    if (immediately) {
+                        game.update();
+                        nextPlay();
+                    } else {
+                        replayLoop = setTimeout(nextPlay, 300);
+                    }
                 } else {
-                    replayLoop = setTimeout(nextPlay, 300);
+                    replaying = false;
                 }
-            } else {
-                replaying = false;
+            } finally {
+                if (immediately)
+                    res.unmute();
             }
         };
 
@@ -152,15 +159,19 @@ const game = {
                 } else if (e.key === "Backspace" || e.key === "Delete") {
                     startLevel(levelNo);
                     game.replay(history.slice(0, history.length-1), true);
-                } else if (godMode && e.key === "End") {
-                    startLevel(levelNo);
-                    setTimeout(() => game.replay(levels.getSolution(levelNo)), 300);
-                } else if (godMode && e.key === "Home") {
-                    startLevel(levelNo);
-                } else if (godMode && e.key === "PageUp") {
-                    startLevel(levelNo + 1);
-                } else if (godMode && e.key === "PageDown") {
-                    startLevel(levelNo - 1);
+                } else if (godMode) {
+                    if (e.key === "End") {
+                        startLevel(levelNo);
+                        setTimeout(() => game.replay(levels.getSolution(levelNo)), 300);
+                    } else if (e.key === "Home") {
+                        startLevel(levelNo);
+                    } else if (e.key === "PageUp") {
+                        startLevel(levelNo + 1);
+                    } else if (e.key === "PageDown") {
+                        startLevel(levelNo - 1);
+                    } else if (e.key === "p") {
+                        console.log(history);
+                    }
                 }
             } else {
                 if (e.key === "Escape") {

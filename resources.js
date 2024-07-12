@@ -3,6 +3,7 @@
 const res = (() => {
     let stepSound, slideSound, slideEndSound, flagSound;
     let pawnImages, pawnUpImages, pawnDownImages, pawnLeftImages, pawnRightImages, blockImages, flagImages;
+    let muted = false;
 
     let createImages = (file, n) => {
         if (!n) {
@@ -98,12 +99,16 @@ const res = (() => {
     };
 
     let playSound = (snd) => {
+        if (muted)
+            return;
         snd.pause();
         snd.currentTime = 0;
         snd.play();
     };
 
     let stopSound = (snd) => {
+        if (muted)
+            return;
         snd.pause();
     };
 
@@ -163,6 +168,9 @@ const res = (() => {
             f.scale = .8;
             f.frameSpeed = .3;
             return f;
-        }
+        },
+
+        mute: () => muted = true,
+        unmute: () => muted = false
     };
 })();
