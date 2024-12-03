@@ -1,5 +1,4 @@
 /* TODO:
-- Undo for touch usecase
 - Steplimits
 - Move limited blocks
 */
@@ -15,7 +14,7 @@ const godMode = true;
 
 ui.init(canvas, w, h);
 levels.init();
-res.init("img", "sfx", ready);
+res.init("img", "sfx", () => {pushState(0); ready();});
 
 const game = {
     init: (levelNo, pawn, blocks, flags, history=[]) => {
@@ -83,6 +82,9 @@ const game = {
             else if (dx === 0 && dy === 1)
                 history.push(3);
 
+            if (!immediately)
+                pushState(history.length);
+
             if (blockAt(pawn.xTarget + dx, pawn.yTarget + dy)) {
                 pawn.move(pawn.xTarget + dx, pawn.yTarget + dy, immediately);
                 let flag = flagAt(pawn.xTarget, pawn.yTarget);
@@ -145,6 +147,10 @@ const game = {
             alert("You fail");
             startLevel(levelNo);
         };
+        let undo = () => {
+            startLevel(levelNo);
+            game.replay(history.slice(0, history.length-1), true);
+        };
 
         keyListener = e => {
             if (!replaying) {
@@ -157,8 +163,7 @@ const game = {
                 } else if (e.key === "Right" || e.key === "ArrowRight" || e.key === "d") {
                     move(1, 0);
                 } else if (e.key === "Backspace" || e.key === "Delete") {
-                    startLevel(levelNo);
-                    game.replay(history.slice(0, history.length-1), true);
+                    undo();
                 } else if (godMode) {
                     if (e.key === "End") {
                         startLevel(levelNo);
@@ -206,7 +211,28 @@ const game = {
         updateLoop = setInterval(game.update, 10);
         drawLoop = setInterval(game.draw, 10);
         stateCheck = setInterval(checkState, 1000);
+
+        window.onpopstate = (event) => {
+            if (!event.state)
+                return false;
+
+            let jump = event.state.n - history.length;
+            if (jump > 0) {
+                window.history.go(-1);
+                return false;
+            } else if (jump == 0) {
+                return false;
+            } else if (jump < -1) {
+                window.history.go(1);
+                return false;
+            }
+            undo();
+        };
     }
+};
+
+function pushState(n) {
+    window.history.pushState({n: n}, '');
 };
 
 function ready(levelNo) {
