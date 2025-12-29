@@ -17,9 +17,9 @@ levels.init();
 res.init("img", "sfx", () => {pushState(0); ready();});
 
 const game = {
-    init: (levelNo, pawn, blocks, flags, history=[]) => {
+    init: (levelNo, pawn, blocks, flags, buttons, history=[]) => {
         let pieces = [...blocks, ...flags, pawn];
-        let updateLoop, drawLoop, stateCheck, keyListener, touchListener, replayLoop, replaying;
+        let updateLoop, drawLoop, stateCheck, keyListener, replayLoop, replaying;
 
         game.update = () => {
             for (let i = 0; i < pieces.length; i++) {
@@ -27,7 +27,7 @@ const game = {
             }
         };
 
-        game.draw = () => ui.drawPieces(pieces);
+        game.draw = () => ui.draw(pieces, buttons);
 
         game.replay = (moveArray, immediately) => {
             if (immediately)
@@ -114,11 +114,15 @@ const game = {
                 blockUnder.move(x, y, immediately);
             }
         };
+        document.addEventListener("moveRight", () => move(1, 0));
+        document.addEventListener("moveUp", () => move(0, -1));
+        document.addEventListener("moveLeft", () => move(-1, 0));
+        document.addEventListener("moveDown", () => move(0, 1));
         let stopLevel = () => {
             for (let i = 0; i < pieces.length; i++) {
                 pieces[i].stop();
             }
-            document.removeEventListener("touchstart", touchListener);
+            ui.deinitButtons();
             document.removeEventListener("keydown", keyListener);
             clearInterval(drawLoop);
             clearInterval(updateLoop);
@@ -187,27 +191,6 @@ const game = {
         };
         document.addEventListener("keydown", keyListener);
 
-        touchListener = e => {
-            if (replaying)
-                return;
-            var touchpos = ui.toGameCoordinates(e.touches[0].clientX, e.touches[0].clientY);
-            var x = touchpos.x * w / frameWidth;
-            var y = touchpos.y * h / frameHeight;
-            var dx = x - (pawn.xTarget + .5);
-            var dy = y - (pawn.yTarget + .5);
-            if (Math.abs(dx) > .5 || Math.abs(dy) > .5) {
-                if (Math.abs(dx) < -dy)
-                    move(0, -1);
-                else if (Math.abs(dy) < -dx)
-                    move(-1, 0);
-                else if (Math.abs(dx) < dy)
-                    move(0, 1);
-                else if (Math.abs(dy) < dx)
-                    move(1, 0);
-            }
-        }
-        document.addEventListener("touchstart", touchListener);
-
         updateLoop = setInterval(game.update, 10);
         drawLoop = setInterval(game.draw, 10);
         stateCheck = setInterval(checkState, 1000);
@@ -243,5 +226,5 @@ function ready(levelNo) {
 
     let level = levels.loadLevel(levelNo);
 
-    game.init(levelNo, level.pawn, level.blocks, level.flags);
+    game.init(levelNo, level.pawn, level.blocks, level.flags, ui.initButtons());
 }

@@ -2,7 +2,8 @@
 
 const res = (() => {
     let stepSound, slideSound, slideEndSound, flagSound;
-    let pawnImages, pawnUpImages, pawnDownImages, pawnLeftImages, pawnRightImages, blockImages, flagImages;
+    let pawnImages, pawnUpImages, pawnDownImages, pawnLeftImages, pawnRightImages;
+    let blockImages, flagImages, buttonImages, buttonPressedImages, buttonHighlightedImages;
     let muted = false;
 
     let createImages = (file, n) => {
@@ -98,6 +99,42 @@ const res = (() => {
         return p;
     };
 
+    let createButton = (label, action, image, imageHighlighted, imagePressed) => {
+        const b = {
+            label: label,
+            x: undefined,
+            y: undefined,
+            radius: 40,
+            image: image
+        };
+        b.moveTo = (x, y) => {
+            b.x = x;
+            b.y = y;
+        };
+        b.scaleTo = (w, h) => {
+            b.radius = Math.min(w, h);
+        };
+        b.update = (mouseX, mouseY, pressed) => {
+            let pos = ui.toGameCoordinates(mouseX, mouseY);
+            if ((b.x - pos.x)**2 + (b.y - pos.y)**2 < b.radius**2) {
+                if (pressed) {
+                    b.image = imagePressed;
+                } else {
+                    b.image = imageHighlighted;
+                }
+            } else {
+                b.image = image;
+            }
+        };
+        b.press = (mouseX, mouseY) => {
+            let pos = ui.toGameCoordinates(mouseX, mouseY);
+            if ((b.x - pos.x)**2 + (b.y - pos.y)**2 < b.radius**2) {
+                action();
+            }
+        };
+        return b;
+    };
+
     let playSound = (snd) => {
         if (muted)
             return;
@@ -122,7 +159,10 @@ const res = (() => {
                 ...(pawnLeftImages = createImages(imgDir + "pawn_left_*.png", 20)),
                 ...(pawnRightImages = createImages(imgDir + "pawn_right_*.png", 20)),
                 ...(blockImages = createImages(imgDir + "block.png")),
-                ...(flagImages = createImages(imgDir + "flag_*.png", 48))
+                ...(flagImages = createImages(imgDir + "flag_*.png", 48)),
+                ...(buttonImages = createImages(imgDir + "button.png")),
+                ...(buttonPressedImages = createImages(imgDir + "button_pressed.png")),
+                ...(buttonHighlightedImages = createImages(imgDir + "button_highlight.png"))
             ], successCallback);
 
             sfxDir = sfxDir + (sfxDir.endsWith("/") ? "" : "/");
@@ -168,6 +208,10 @@ const res = (() => {
             f.scale = .8;
             f.frameSpeed = .3;
             return f;
+        },
+
+        createButton: (label, action) => {
+            return createButton(label, action, buttonImages[0], buttonHighlightedImages[0], buttonPressedImages[0]);
         },
 
         mute: () => muted = true,

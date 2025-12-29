@@ -21,7 +21,7 @@ Use the yellow pawn thing to step on the blocks or slide them from underneath to
 
 | Action            | Platform: Desktop              | Platform: Mobile       |
 | ----------------- | ------------------------------ | ---------------------- |
-| Step / slide      | directional keys / WASD        | touch in the direction |
+| Step / slide      | directional keys / WASD        | On screen buttons      |
 | Undo              | Del / Backspace / Browser back | Browser back           |
 | Restart level     | Home / Browser refresh         | Browser refresh        |
 | Next level        | Page Up                        | N/A                    |
